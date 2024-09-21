@@ -13,61 +13,30 @@
 # limitations under the License.
 
 import asyncio
-import csv
+import os
 
 from langchain.embeddings import VertexAIEmbeddings
-
-import models
-from app import EMBEDDING_MODEL_NAME
-
+from langchain_community.document_loaders import PyPDFLoader
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_community.vectorstores import MongoDBAtlasVectorSearch
+from pymongo import MongoClient
 
 async def main() -> None:
-    embed_service = VertexAIEmbeddings(model_name=EMBEDDING_MODEL_NAME)
-
-    amenities: list[models.Amenity] = []
-    with open("../data/amenity_dataset.csv", "r") as f:
-        reader = csv.DictReader(f, delimiter=",")
-        for line in reader:
-            amenity = models.Amenity.model_validate(line)
-            if amenity.content:
-                amenity.embedding = embed_service.embed_query(amenity.content)
-                amenities.append(amenity)
-
-    print("Completed embedding generation.")
-
-    with open("../data/amenity_dataset.csv.new", "w") as f:
-        col_names = [
-            "id",
-            "name",
-            "description",
-            "location",
-            "terminal",
-            "category",
-            "hour",
-            "sunday_start_hour",
-            "sunday_end_hour",
-            "monday_start_hour",
-            "monday_end_hour",
-            "tuesday_start_hour",
-            "tuesday_end_hour",
-            "wednesday_start_hour",
-            "wednesday_end_hour",
-            "thursday_start_hour",
-            "thursday_end_hour",
-            "friday_start_hour",
-            "friday_end_hour",
-            "saturday_start_hour",
-            "saturday_end_hour",
-            "content",
-            "embedding",
-        ]
-        writer = csv.DictWriter(f, col_names, delimiter=",")
-        writer.writeheader()
-        for amenity in amenities:
-            writer.writerow(amenity.model_dump())
-
-    print("Wrote data to CSV.")
-
+    # Connect to MongoDB
+    mongo_client = MongoClient(os.environ.get("ATLAS_URI"))
+    collection = mongo_client["GeminiRAG"]["chat-rag"]
+    # Use VertexAI Embeddings Model to embed vector into MongoDB Atlas Vector Search
+    embed_service = VertexAIEmbeddings(model_name="textembedding-gecko@001")
+    # Load the PDF File
+    loader = PyPDFLoader('../data/Cover_Letter.pdf')
+    # Split the PDF into chunks
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+    split_docs = text_splitter.split_documents(loader)
+    # Store the chunks into MongoDB Atlas Vector Search
+    vector_store = MongoDBAtlasVectorSearch(collection, embed_service)
+    vector_store.add_documents(split_docs)
+    
+    print("Imported the document into the MongoDB Atlas vector store.")
 
 if __name__ == "__main__":
     asyncio.run(main())

@@ -76,7 +76,7 @@ async def create_client_session() -> aiohttp.ClientSession:
 async def init_agent(history: list[messages.BaseMessage]) -> UserAgent:
     """Load an agent executor with tools and LLM"""
     print("Initializing agent..")
-    llm = VertexAI(max_output_tokens=512, model_name="gemini-pro")
+    llm = VertexAI(max_output_tokens=512, model_name="gemini-1.5-pro-001")
     memory = ConversationBufferMemory(
         chat_memory=ChatMessageHistory(messages=history),
         memory_key="chat_history",
@@ -113,59 +113,14 @@ async def init_agent(history: list[messages.BaseMessage]) -> UserAgent:
     return UserAgent(client, agent)
 
 
-PREFIX = """SFO Airport Assistant helps travelers find their way at the airport.
+PREFIX = """Michael's Assistant helps users to find out about Michael.
+Assistant is designed to be able to answer accurate and verified information about Michael.
+Assistant do not respond to irrelevant or nonsensical questions.
+Assistant use any provided context about Michael's experience, such as work experience, past publications, and personal project.
+Assistant do not mention that the context was used to generate the response. 
+Assistant only include information directly relevant to the user's inquiry.
+"""
 
-Assistant is designed to be able to assist with a wide range of tasks, from answering simple questions to
-complex multi-query questions that require passing results from one query to another. As a language model, Assistant is
-able to generate human-like text based on the input it receives, allowing it to engage in natural-sounding
-conversations and provide responses that are coherent and relevant to the topic at hand.
-
-Overall, Assistant is a powerful tool that can help answer a wide range of questions pertaining to the San
-Francisco Airport. SFO Airport Assistant is here to assist. It currently does not have access to user info.
-
-TOOLS:
-------
-
-Assistant has access to the following tools:"""
-
-FORMAT_INSTRUCTIONS = """Use a json blob to specify a tool by providing an action key (tool name)
-and an action_input key (tool input).
-
-Valid "action" values: "Final Answer" or {tool_names}
-
-Provide only ONE action per $JSON_BLOB, as shown:
-
-```
-{{{{
-  "action": $TOOL_NAME,
-  "action_input": $INPUT
-}}}}
-```
-
-Follow this format:
-
-Question: input question to answer
-Thought: consider previous and subsequent steps
-Action:
-```
-$JSON_BLOB
-```
-Observation: action result
-... (repeat Thought/Action/Observation N times)
-Thought: I know what to respond
-Action:
-```
-{{{{
-  "action": "Final Answer",
-  "action_input": "Final response to human"
-}}}}
-```"""
-
-SUFFIX = """Begin! Use tools if necessary. Respond directly if appropriate.
-If using a tool, reminder to ALWAYS respond with a valid json blob of a single action.
-Format is Action:```$JSON_BLOB```then Observation:.
-Thought:
-
-Previous conversation history:
+SUFFIX = """Previous conversation history:
 {chat_history}
 """

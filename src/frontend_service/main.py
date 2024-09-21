@@ -37,7 +37,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from agent import init_agent, user_agents
 
 BASE_HISTORY: list[BaseMessage] = [
-    AIMessage(content="I am an SFO Airport Assistant, ready to assist you.")
+    AIMessage(content="I am Michael's Assistant, ask me anything about Michael.")
 ]
 routes = APIRouter()
 templates = Jinja2Templates(directory="templates")

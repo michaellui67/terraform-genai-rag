@@ -14,56 +14,42 @@
 
 from contextlib import asynccontextmanager
 from ipaddress import IPv4Address, IPv6Address
-from typing import Optional
 
-import yaml
 import os
 from fastapi import FastAPI
 from langchain.embeddings import VertexAIEmbeddings
 from pydantic import BaseModel
-
-import datastore
+from motor.motor_asyncio import AsyncIOMotorClient
 
 from .routes import routes
-
-EMBEDDING_MODEL_NAME = "textembedding-gecko@001"
-
 
 class AppConfig(BaseModel):
     host: IPv4Address | IPv6Address = IPv4Address("127.0.0.1")
     port: int = 8080
-    datastore: datastore.Config
-    clientId: Optional[str] = None
-
+    atlas_uri: str
+    mongodb_db: str
 
 def parse_config() -> AppConfig:
     config = {}
     config["host"] = os.environ.get("APP_HOST", "127.0.0.1")
     config["port"] = os.environ.get("APP_PORT", 8080)
-    config["datastore"] = {}
-    config["datastore"]["kind"] = os.environ.get("DB_KIND", "cloudsql-postgres")
-    config["datastore"]["project"] = os.environ.get("DB_PROJECT", "my-project")
-    config["datastore"]["region"] = os.environ.get("DB_REGION", "us-central1")
-    config["datastore"]["instance"] = os.environ.get("DB_INSTANCE", "my-instance")
-    config["datastore"]["database"] = os.environ.get("DB_NAME", "assistantdemo")
-    config["datastore"]["user"] = os.environ.get("DB_USER", "postgres")
-    config["datastore"]["password"] = os.environ.get("DB_PASSWORD", "password")
+    config["atlas_uri"] = os.environ.get("ATLAS_URI", "mongodb://localhost:27017")
+    config["mongodb_db"] = os.environ.get("MONGODB_DB", "GeminiRAG")
     return AppConfig(**config)
 
-
-# gen_init is a wrapper to initialize the datastore during app startup
 def gen_init(cfg: AppConfig):
-    async def initialize_datastore(app: FastAPI):
-        app.state.datastore = await datastore.create(cfg.datastore)
-        app.state.embed_service = VertexAIEmbeddings(model_name=EMBEDDING_MODEL_NAME)
+    async def initialize_mongodb(app: FastAPI):
+        # Initialize MongoDB connection
+        app.state.mongodb_client = AsyncIOMotorClient(cfg.atlas_uri)
+        app.state.mongodb_db = app.state.mongodb_client[cfg.mongodb_db]
+        app.state.embed_service = VertexAIEmbeddings(model_name="textembedding-gecko@001")
         yield
-        await app.state.datastore.close()
+        # Close MongoDB connection on shutdown
+        app.state.mongodb_client.close()
 
-    return asynccontextmanager(initialize_datastore)
-
+    return asynccontextmanager(initialize_mongodb)
 
 def init_app(cfg: AppConfig) -> FastAPI:
     app = FastAPI(lifespan=gen_init(cfg))
-    app.state.client_id = cfg.clientId
     app.include_router(routes)
     return app
